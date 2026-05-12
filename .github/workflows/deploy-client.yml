@@ -5,6 +5,9 @@ on:
     paths:
       - 'client/**' # Only run if files in the client folder change
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
