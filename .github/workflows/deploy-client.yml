@@ -13,16 +13,16 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout 🛎️
+      - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install and Build 🔧
+      - name: Install and Build
         run: |
           cd client
           npm install
           npm run build
 
-      - name: Deploy 🚀
+      - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: client/dist # The folder the action should deploy
