@@ -1,0 +1,74 @@
+class SheetAsORM<T extends MinimumData> {
+
+  constructor(sheet: GoogleAppsScript.Spreadsheet.Sheet) {
+    this.sheet = sheet;
+  }
+
+  private sheet: GoogleAppsScript.Spreadsheet.Sheet;
+
+  get columnInfo(): ColumnInfo<T>[] {
+    const lastCol = this.sheet.getLastColumn();
+    if (lastCol === 0) return [];
+
+    const [headers, dataTypes] = this.sheet.getRange(1, 1, 2, lastCol).getValues();
+
+    return headers.map((name, index) => {
+      const dataType = dataTypes[index] === "" ? "string" : dataTypes[index];
+
+      return { name, dataType };
+    });
+  }
+
+  setRow(index: number, data: T) {
+    const info = this.columnInfo; // Corrected: use 'this'
+    const rowOutput = _convertToRow(data, info);
+    this.sheet.getRange(index + 3, 1, 1, rowOutput.length).setValues([rowOutput]);
+  }
+
+  getRow(index: number): T {
+    const info = this.columnInfo;
+    const row = this.sheet.getRange(index + 3, 1, 1, info.length).getValues()[0];
+    return _convertFromRow(row, info);
+  }
+
+  appendRow(data: T): T {
+    return _addRow(this.sheet, this.columnInfo, data);
+  }
+
+  getById(id: string): T | undefined {
+    for (const row of this) {
+      if (row.id === id) {
+        return row;
+      }
+    }
+    return undefined;
+  }
+
+  setById(data: T) {
+    const index = [...this].findIndex(row => row.id === data.id);
+    
+    if (index !== -1) {
+      this.appendRow(data);
+    } else {
+      this.setRow(index, data);
+    }
+  }
+
+  get length(): number {
+    const lastRow = this.sheet.getLastRow();
+    return Math.max(0, lastRow - 2);
+  }
+
+  *[Symbol.iterator]() {
+    const info = this.columnInfo;
+    const total = this.length;
+
+    if (total <= 0 || info.length === 0) return;
+
+    const values = this.sheet.getRange(3, 1, total, info.length).getValues();
+
+    for (const row of values) {
+      yield _convertFromRow(row, info);
+    }
+  }
+}

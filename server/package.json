@@ -1,0 +1,19 @@
+{
+  "name": "dynamic-task-list-server",
+  "version": "1.0.0",
+  "description": "The server component of my Dynamic Task List, built for Google Apps Script",
+  "license": "ISC",
+  "author": "fantomx11",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "clean": "shx rm -rf dist",
+    "copy-manifest": "shx cp src/appsscript.json dist/appsscript.json",
+    "build": "npm run clean && tsc && npm run copy-manifest",
+    "push": "npm run build && clasp push"
+  },
+  "devDependencies": {
+    "@types/google-apps-script": "^2.0.8",
+    "shx": "^0.4.0"
+  }
+}

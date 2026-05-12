@@ -1,0 +1,28 @@
+type RouteHandler = (groups: Record<string, string>, data: any) => GoogleAppsScript.Content.TextOutput | GoogleAppsScript.HTML.HtmlOutput;
+
+class Router {
+  private static parsePattern(pattern: string): RegExp {
+    const regexString = pattern.replace(/:([^/]+)/g, (match, paramName) => `(?<${paramName}>[^/]+)`);
+    return new RegExp('^' + regexString.replace(/\//g, '\\/') + '$');
+  }
+
+  constructor() {
+    this.routes = [];
+  }
+
+  routes: { regex: RegExp, handler: RouteHandler }[];
+
+  add(pattern: string, handler: RouteHandler) {
+    this.routes.push({ regex: Router.parsePattern(pattern), handler});
+  }
+
+  handle(path: string, data: any) {
+    for (const route of this.routes) {
+      const match = path.match(route.regex);
+      if (match) {
+        return route.handler(match.groups || {}, data);
+      }
+    }
+    return { error: "404 Not Found", path: path };
+  }
+}

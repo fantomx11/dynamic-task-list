@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamic Task List UI</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+  <base href="<?!= url ?>">
+  <style>
+    <?!= _include("src/ui.css") ?>
+  </style>
+</head>
+
+<body>
+
+  <div class="main-layout-container">
+    <div class="left-sidebar" id="treeViewContainer">
+      <h2>Folders</h2>
+      <ul class="tree-view" id="folderTree">
+        <!-- Tree view nodes will be rendered here -->
+      </ul>
+    </div>
+
+    <div class="main-content-area">
+      <h1>My Dynamic Task List </h1>
+
+      <div class="controls-one">
+        <div class="filter-dropdown" id="filterDropdown">
+          <button class="filter-button">Filter <i class="fas fa-caret-down"></i></button>
+          <div class="dropdown-content">
+            <label><input type="checkbox" id="filterAll" checked> All</label>
+            <label><input type="checkbox" id="filterWaiting" checked> Waiting</label>
+            <label><input type="checkbox" id="filterActive" checked> Active</label>
+            <label><input type="checkbox" id="filterCompleted" checked> Completed</label>
+          </div>
+        </div>
+        <div class="mode-toggle">
+          <button id="modeToggle">Current Mode: Sort</button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="showFilteredTasksBtn" class="add-task-button">Show Filtered Tasks</button>
+        <button id="addTasksBtn" class="add-task-button">Add Tasks</button>
+        <button id="duplicateFolderBtn" class="duplicate-button">Duplicate Folder</button>
+        <button id="syncNowBtn" class="sync-button">Sync Now</button>
+      </div>
+
+      <div id="taskListContainer">
+        <!-- Task items will be rendered here -->
+        <div class="no-tasks-message" id="noTasksMessage">No tasks to display.</div>
+      </div>
+    </div>
+
+    <div class="right-sidebar">
+      <div id="taskDetailsPanel">
+        <div id="noTaskSelectedMessage" class="no-task-selected-message">
+          Select a task to view its details.
+        </div>
+        <!-- Task details will be rendered here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Template for a single task item (main area) -->
+  <template id="taskItemTemplate">
+    <div class="task-item" draggable="true">
+      <div class="task-checkbox">
+        <input type="checkbox" class="task-complete-checkbox">
+      </div>
+      <i class="task-folder-icon fas fa-folder"></i>
+      <div class="task-title"></div>
+    </div>
+  </template>
+
+  <!-- Template for a single tree view node -->
+  <template id="treeNodeTemplate">
+    <li class="tree-node">
+      <div class="tree-node-content">
+        <i class="toggle-icon fas fa-caret-right"></i> <!-- Toggle icon -->
+        <i class="tree-node-icon fas fa-folder"></i>
+        <span class="tree-node-title"></span>
+      </div>
+    </li>
+  </template>
+
+  <!-- Template for the Add Tasks Dialog -->
+  <template id="addTaskDialogTemplate">
+    <dialog id="addTaskDialog">
+      <h2>Add New Tasks</h2>
+      <textarea id="taskTitlesInput" placeholder="Enter task titles, one per line"></textarea>
+      <div class="dialog-buttons">
+        <button class="ok-button">OK</button>
+        <button class="cancel-button">Cancel</button>
+      </div>
+    </dialog>
+  </template>
+
+  <!-- Template for the Confirmation Dialog -->
+  <template id="confirmationDialogTemplate">
+    <dialog id="confirmationDialog" class="confirm-dialog">
+      <h2>Confirm Action</h2>
+      <p id="confirmationMessage"></p>
+      <div class="dialog-buttons confirm-buttons">
+        <button class="confirm-ok-button">Confirm</button>
+        <button class="confirm-cancel-button">Cancel</button>
+      </div>
+    </dialog>
+  </template>
+  
+  <template id="filteredTasksDialogTemplate">
+    <dialog id="filteredTasksDialog">
+      <h2>Filtered Tasks</h2>
+      <div id="filteredTaskListContainer"></div>
+      <div class="dialog-buttons">
+        <button class="ok-button">Close</button>
+      </div>
+    </dialog>
+  </template>
+
+  <script>
+    <?!= _include("src/functions.js") ?>
+  </script>
+  <script>
+    <?!= _include("src/Task.js") ?>
+  </script>
+  <script>
+    <?!= _include("src/taskui.js") ?>
+  </script>
+</body>
+
+</html>
