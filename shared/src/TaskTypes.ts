@@ -13,30 +13,31 @@ export type ColumnInfo<T extends MinimumData, K extends keyof T = keyof T> = {
 
 export type MinimumData = {
   id: string;
-  deleted: boolean;
+  isDeleted: boolean;
   syncVersion: number;
+  isNew?: boolean;
 }
 
 export type SyncDataBase = {
   syncToken?: number;
-  updatedIds?: Record<string, string>;
+  updatedIds?: Record<string, string>[];
 };
 
 export type DynamicPayload<T extends MinimumData, Name extends string> = {
-  [K in Name]?: (T & { isNew?: boolean })[];
+  [K in Name]?: T[];
 };
 
 export type SyncData<T extends MinimumData, Name extends string> = SyncDataBase & DynamicPayload<T, Name>;
 
-export interface Task extends MinimumData {
+export type TaskSyncData = SyncData<TaskData, 'tasks'>;
+
+export interface TaskData extends MinimumData {
   id: string,
   title: string,
-  parentId: string,
+  parentId?: string,
   dependencyIds: string[],
-  isCompleted: string,
   sortOrder: number,
   syncVersion: number,
-  deleted: boolean,
   delay: Date,
-  completionDate: Date
+  completion: Date
 }

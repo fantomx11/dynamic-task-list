@@ -1,6 +1,6 @@
 //#region Imports
 
-import { ColumnInfo, MinimumData, SyncData, Task } from "@dynamic-task-list/shared";
+import { ColumnInfo, MinimumData, SyncData, TaskData } from "@dynamic-task-list/shared";
 
 //#endregion
 
@@ -13,7 +13,7 @@ const TASKS_SHEET_NAME = 'tasks';
 
 //#region helper functions
 
-function _getSheetByName(sheetName: string): GoogleAppsScript.Spreadsheet.Sheet {
+function getSheetByName(sheetName: string): GoogleAppsScript.Spreadsheet.Sheet {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
   if (!spreadsheet) {
     throw new Error(`Spreadsheet with ID ${SPREADSHEET_ID} not found.`);
@@ -25,24 +25,24 @@ function _getSheetByName(sheetName: string): GoogleAppsScript.Spreadsheet.Sheet 
   return sheet;
 }
 
-function _generateId(): string {
+function generateId(): string {
   return "id-" + Date.now().toString(16).padStart(12, "0") + "-" + Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
 }
 
-function _updateIds(updatedItems: any[] = []): Map<string, string> {
-  const updatedIds = new Map();
+function generateIds(updatedItems: any[] = []): {updatedItems: any[], idMap: Map<string, string>} {
+  const idMap = new Map();
 
   updatedItems.filter(item => item.isNew).forEach(item => {
-    const id = _generateId();
+    const id = generateId();
 
-    updatedIds.set(item.id, id);
+    idMap.set(item.id, id);
     item.id = id;
   });
 
-  return updatedIds;
+  return {updatedItems, idMap };
 }
 
-function _getColumnInfo<T extends MinimumData>(sheet: GoogleAppsScript.Spreadsheet.Sheet): ColumnInfo<T>[] {
+function getColumnInfo<T extends MinimumData>(sheet: GoogleAppsScript.Spreadsheet.Sheet): ColumnInfo<T>[] {
   const lastCol = sheet.getLastColumn();
   if (lastCol === 0) return [];
 
@@ -55,7 +55,7 @@ function _getColumnInfo<T extends MinimumData>(sheet: GoogleAppsScript.Spreadshe
   });
 }
 
-function _getIndex<T extends MinimumData>(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnInfo: ColumnInfo<T>[]): string[] {
+function getIndex<T extends MinimumData>(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnInfo: ColumnInfo<T>[]): string[] {
   const lastRow = sheet.getLastRow();
   if (lastRow < 3) return [];
 
@@ -82,7 +82,7 @@ const ToServerTransformers: Record<string, (val: any) => any> = {
  * based on the provided column information.
  * Handles specific data type conversions like stringifying arrays.
  */
-function _convertToRow<T extends MinimumData>(obj: T, columnInfo: ColumnInfo<T>[]): any[] {
+function convertToRow<T extends MinimumData>(obj: T, columnInfo: ColumnInfo<T>[]): any[] {
   return columnInfo.map(({ name, dataType }) => {
     const transformer = ToServerTransformers[dataType];
     const val = obj[name];
@@ -103,13 +103,12 @@ const FromServerTransformers: Record<string, (val: any) => any> = {
   date: (val) => { val = new Date(val); return isNaN(val.getTime()) ? null : val },
 };
 
-
 /**
  * Converts a raw row array from Google Sheets into a structured JavaScript object,
  * based on the provided column information.
  * Handles type conversions (number, boolean, array, date) and parsing stringified arrays.
  */
-function _convertFromRow<T extends MinimumData>(row: any[], columnInfo: ColumnInfo<T>[]): T {
+function convertFromRow<T extends MinimumData>(row: any[], columnInfo: ColumnInfo<T>[]): T {
   return columnInfo.reduce((obj, { name, dataType }, colIndex) => {
     const transformer = FromServerTransformers[dataType];
 
@@ -128,9 +127,9 @@ function _convertFromRow<T extends MinimumData>(row: any[], columnInfo: ColumnIn
  * This function handles applying client updates to the sheet and returning server updates to the client.
  * @throws {Error} If there is a failure in loading or updating tasks.
  */
-function _mergeTasks(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnInfo: ColumnInfo<Task>[], syncToken?: number, clientTasks: Task[] = []): SyncData<Task, "tasks"> {
+function mergeTasks(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnInfo: ColumnInfo<TaskData>[], syncToken?: number, clientTasks: TaskData[] = []): SyncData<TaskData, "tasks"> {
   try {
-    const index = _getIndex(sheet, columnInfo);
+    const index = getIndex(sheet, columnInfo);
 
     if (clientTasks.length > 0) {
       console.log("clientTasks length is greater than 0. Applying updates.");
@@ -139,15 +138,15 @@ function _mergeTasks(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnInfo: Colu
         const serverRow = index.findIndex(id => id === clientTask.id);
 
         if (serverRow !== -1) {
-          sheet.getRange(serverRow + 3, 1, 1, columnInfo.length).setValues([_convertToRow(clientTask, columnInfo)]);
+          sheet.getRange(serverRow + 3, 1, 1, columnInfo.length).setValues([convertToRow(clientTask, columnInfo)]);
         } else {
-          sheet.appendRow(_convertToRow(clientTask, columnInfo));
+          sheet.appendRow(convertToRow(clientTask, columnInfo));
           index.push(clientTask.id);
         }
       })
     }
 
-    const serverTasks = sheet.getDataRange().getValues().slice(2).map(row => _convertFromRow<Task>(row, columnInfo));
+    const serverTasks = sheet.getDataRange().getValues().slice(2).map(row => convertFromRow<TaskData>(row, columnInfo));
     const newSyncToken = Date.now();
 
     if (syncToken !== null && syncToken !== void 0) {
@@ -158,7 +157,7 @@ function _mergeTasks(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnInfo: Colu
     } else {
       return {
         syncToken: newSyncToken,
-        tasks: serverTasks.filter(task => !task.deleted)
+        tasks: serverTasks.filter(task => !task.isDeleted)
       };
     }
   } catch (e) {
@@ -166,36 +165,55 @@ function _mergeTasks(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnInfo: Colu
   }
 }
 
+function updateParentId(task: TaskData, idMap: Map<string, string>): TaskData {
+  if(task.parentId) {
+    const updatedParentId = idMap.get(task.parentId);
+    
+    if (updatedParentId !== void 0) {
+      task.parentId = updatedParentId;
+    }
+  }
+
+  return task;
+}
+
+function updateDependencyIds(task: TaskData, idMap: Map<string, string>): TaskData {
+  task.dependencyIds = task.dependencyIds.map(id => {
+    const updatedId = idMap.get(id);
+    return (updatedId !== void 0) ? updatedId : id;
+  });
+
+  return task;
+}
+
+function updateIds(tasks: TaskData[], idMap: Map<string, string>): TaskData[] {
+  tasks.forEach(task => {
+    task = updateParentId(task, idMap);
+    task = updateDependencyIds(task, idMap);
+  });
+
+  return tasks;
+}
+
 //#endregion
 
 export function syncTasks({
   syncToken = 0,
   tasks = []
-}: SyncData<Task, "tasks"> = {}): SyncData<Task, "tasks"> {
-  const sheet = _getSheetByName(TASKS_SHEET_NAME);
-  const columnInfo = _getColumnInfo<Task>(sheet);
+}: SyncData<TaskData, "tasks"> = {}): SyncData<TaskData, "tasks"> {
+  const sheet = getSheetByName(TASKS_SHEET_NAME);
+  const columnInfo = getColumnInfo<TaskData>(sheet);
 
-  const updatedIds = _updateIds(tasks);
+  let idMap: Map<string, string>;
 
-  tasks.forEach(clientTask => {
-    const updatedParentId = updatedIds.get(clientTask.parentId);
+  ({updatedItems: tasks, idMap} = generateIds(tasks));
 
-    if (updatedParentId !== void 0) {
-      clientTask.parentId = updatedParentId;
-    }
-
-    [...updatedIds.keys()].forEach(updatedId => {
-      const oldIdIndex = clientTask.dependencyIds.indexOf(updatedId);
-      if (oldIdIndex !== -1) {
-        clientTask.dependencyIds[oldIdIndex] = <string>updatedIds.get(updatedId);
-      }
-    });
-  });
-
-  const returnData = _mergeTasks(sheet, columnInfo, syncToken, tasks);
+  tasks = updateIds(tasks, idMap);
+  
+  const returnData = mergeTasks(sheet, columnInfo, syncToken, tasks);
 
   return {
     ...returnData,
-    updatedIds: Object.fromEntries(updatedIds)
+    updatedIds: <any>Object.fromEntries(idMap)
   };
 }
