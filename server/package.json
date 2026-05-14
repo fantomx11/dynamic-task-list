@@ -1,5 +1,5 @@
 {
-  "name": "dynamic-task-list-server",
+  "name": "@dynamic-task-list/server",
   "version": "1.0.0",
   "description": "The server component of my Dynamic Task List, built for Google Apps Script",
   "license": "ISC",
@@ -9,14 +9,16 @@
   "scripts": {
     "clean": "shx rm -rf dist",
     "copy-manifest": "shx cp src/appsscript.json dist/appsscript.json",
-    "build": "npm run clean && tsc && npm run copy-manifest",
+    "bundle": "node build.js",
+    "build": "npm run clean && npm run bundle && npm run copy-manifest",
     "push": "npm run build && clasp push"
   },
   "dependencies": {
-    "@my-app/shared": "*"
+    "@dynamic-task-list/shared": "*"
   },
   "devDependencies": {
     "@types/google-apps-script": "^2.0.8",
+    "esbuild": "^0.28.0",
     "shx": "^0.4.0"
   }
 }

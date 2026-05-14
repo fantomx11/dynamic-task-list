@@ -1,30 +1,18 @@
-//#region constants
+//#region Imports
 
-/**
- * Global constant for the ID of your Google Sheet.
- */
-const SPREADSHEET_ID = '1qrYw7aqCvNg5lSqsVZVbZpZrsk6s_IL7b903v2_bhFI';
-
-/**
- * Global constant for the sheet name where tasks data will be stored.
- * @constant {string}
- */
-const TASKS_SHEET_NAME = 'tasks';
+import { ColumnInfo, MinimumData, SyncData, Task } from "@dynamic-task-list/shared";
 
 //#endregion
 
-//#region interfaces and types
+//#region constants
 
-
+const SPREADSHEET_ID = '1qrYw7aqCvNg5lSqsVZVbZpZrsk6s_IL7b903v2_bhFI';
+const TASKS_SHEET_NAME = 'tasks';
 
 //#endregion
 
 //#region helper functions
 
-/**
- * Retrieves a specific Google Sheet by its ID and name.
- * @throws {Error} If the spreadsheet with the global ID or the specified sheet is not found.
- */
 function _getSheetByName(sheetName: string): GoogleAppsScript.Spreadsheet.Sheet {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
   if (!spreadsheet) {
@@ -37,18 +25,10 @@ function _getSheetByName(sheetName: string): GoogleAppsScript.Spreadsheet.Sheet 
   return sheet;
 }
 
-/**
- * Generates a unique ID string. This ID is prefixed with "id-" and includes a timestamp
- * and a random hexadecimal component to ensure uniqueness.
- */
 function _generateId(): string {
   return "id-" + Date.now().toString(16).padStart(12, "0") + "-" + Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
 }
 
-/**
- * Updates the IDs of newly created items (those with temporary client-side IDs)
- * by generating new permanent server-side IDs and storing the mapping.
- */
 function _updateIds(updatedItems: any[] = []): Map<string, string> {
   const updatedIds = new Map();
 
@@ -86,38 +66,43 @@ function _getIndex<T extends MinimumData>(sheet: GoogleAppsScript.Spreadsheet.Sh
   return sheet.getRange(3, idColumn + 1, lastRow - 2, 1).getValues().map(row => row[0]);
 }
 
+const ToServerTransformers: Record<string, (val: any) => any> = {
+  array: (val) => Array.isArray(val) ? JSON.stringify(val) : "[]",
+  date: (val) => {
+    if (val) {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d.toISOString();
+    }
+    return null;
+  }
+}
+
 /**
  * Converts a JavaScript object into a row array suitable for Google Sheets,
  * based on the provided column information.
  * Handles specific data type conversions like stringifying arrays.
- * @template T
- * @param {T} obj - The JavaScript object to convert.
- * @param {ColumnInfo[]} columnInfo - An array describing the columns (name and data type).
- * @returns {any[]} An array representing a row of data.
  */
 function _convertToRow<T extends MinimumData>(obj: T, columnInfo: ColumnInfo<T>[]): any[] {
   return columnInfo.map(({ name, dataType }) => {
-    let value: any = obj[name];
+    const transformer = ToServerTransformers[dataType];
+    const val = obj[name];
 
-    switch (dataType) {
-      case "array":
-        // Ensure it's stringified for the sheet
-        value = Array.isArray(value) ? JSON.stringify(value) : "[]";
-        break;
-
-      case "date":
-        if (value) {
-          const d = new Date(value);
-          value = isNaN(d.getTime()) ? null : d;
-        }
-        break;
-      default:
-        value = value === undefined ? "" : value;
+    if (transformer) {
+      return transformer(val);
+    } else {
+      return val === undefined || val === null ? "" : val;
     }
-    return value;
   });
-
 }
+
+const FromServerTransformers: Record<string, (val: any) => any> = {
+  string: (val) => String(val || ""),
+  number: (val) => (val === "" || isNaN(Number(val))) ? null : Number(val),
+  boolean: (val) => val === true || String(val).toLowerCase() === "true",
+  array: (val) => { try { const parsed = JSON.parse(val); return Array.isArray(parsed) ? parsed : []; } catch { return []; } },
+  date: (val) => { val = new Date(val); return isNaN(val.getTime()) ? null : val },
+};
+
 
 /**
  * Converts a raw row array from Google Sheets into a structured JavaScript object,
@@ -126,42 +111,16 @@ function _convertToRow<T extends MinimumData>(obj: T, columnInfo: ColumnInfo<T>[
  */
 function _convertFromRow<T extends MinimumData>(row: any[], columnInfo: ColumnInfo<T>[]): T {
   return columnInfo.reduce((obj, { name, dataType }, colIndex) => {
-    let value = row[colIndex];
+    const transformer = FromServerTransformers[dataType];
 
-    switch (dataType) {
-      case "string":
-        break;
-
-      case "number":
-        value = (value === "" || isNaN(Number(value))) ? null : Number(value);
-        break;
-
-      case "boolean":
-        value = value === true || String(value).toLowerCase() === "true";
-        break;
-
-      case "array":
-        try {
-          value = value ? JSON.parse(value) : [];
-        } catch (e) {
-          value = [];
-        }
-        if (!Array.isArray(value)) {
-          value = [];
-        }
-        break;
-
-      case "date":
-        value = (value instanceof Date && !isNaN(value.getTime())) ? value : null;
-        break;
-      default:
-        value = value === undefined ? "" : value;
+    if (transformer) {
+      obj[name] = transformer(row[colIndex]);
+    } else {
+      obj[name] = row[colIndex];
     }
 
-    obj[name] = value;
-
     return obj;
-  }, <T>{});
+  }, {} as T);
 }
 
 /**
@@ -209,7 +168,7 @@ function _mergeTasks(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnInfo: Colu
 
 //#endregion
 
-function syncTasks({
+export function syncTasks({
   syncToken = 0,
   tasks = []
 }: SyncData<Task, "tasks"> = {}): SyncData<Task, "tasks"> {
